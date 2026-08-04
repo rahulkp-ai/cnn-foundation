@@ -1,0 +1,1 @@
+"""cnn-foundation — a convolutional neural network built from scratch in pure Python + NumPy."""
