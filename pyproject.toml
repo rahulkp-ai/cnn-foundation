@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cnn-foundation"
+version = "0.1.0"
+description = "A convolutional neural network — tensor autograd engine, conv2d, pooling, and training loop — built from scratch in pure Python and NumPy, no ML frameworks."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [
+    { name = "RAHUL K P" }
+]
+keywords = ["python", "machine-learning", "deep-learning", "cnn", "convolutional-neural-network", "autograd", "backpropagation", "from-scratch", "numpy"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Education",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "numpy>=1.23",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "matplotlib>=3.5",
+    "jupyter>=1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/rahulkp-ai/cnn-foundation"
+Repository = "https://github.com/rahulkp-ai/cnn-foundation"
+
+[tool.setuptools.packages.find]
+include = ["src*"]
