@@ -15,21 +15,11 @@ This repository implements a **NumPy-backed automatic differentiation engine** (
 
 It is the direct sequel to [**ann-foundation**](https://github.com/rahulkp-ai/ann-foundation), which built a scalar autograd engine (`Value`) and a Multi-Layer Perceptron from scratch. `cnn-foundation` lifts the same philosophy — understand every gradient, trust nothing without numerical proof — one level up: from scalars to N-dimensional arrays, and from fully-connected layers to convolution.
 
-The project covers the complete CNN pipeline:
-
-```
-Image Input → Conv2D → ReLU → MaxPool2D → Conv2D → ReLU → MaxPool2D → Flatten → Linear → Softmax/CrossEntropy
-                                          ↓
-                        Backward Pass (im2col / col2im, chain rule) → Optimizer Step → Repeat
-```
-
----
-
 ## Features
 
 - **Tensor Autograd Engine** — reverse-mode automatic differentiation over NumPy arrays via topological sort
 - **Broadcasting-Aware Backward** — gradients correctly "un-broadcast" back to their original shape (e.g. shared bias terms)
-- **`im2col` / `col2im` Convolution** — the standard trick that turns convolution into a single matmul, made fast *and* differentiable
+- **`im2col` / `col2im` Convolution** — the standard trick that turns convolution into a single matmul, made fast _and_ differentiable
 - **Max Pooling** — gradient routes only to the argmax position in each window
 - **Activations** — ReLU (core op), Softmax and Sigmoid (composed from existing differentiable ops)
 - **Cross-Entropy Loss** — numerically stable log-softmax via the log-sum-exp trick, with a clean closed-form gradient
@@ -43,28 +33,30 @@ Image Input → Conv2D → ReLU → MaxPool2D → Conv2D → ReLU → MaxPool2D 
 ## Project Structure
 
 ```
+
 cnn-foundation/
 ├── src/
-│   ├── engine.py        # Tensor class — autograd engine, im2col/col2im, conv2d, max_pool2d
-│   ├── layers.py         # Conv2D, MaxPool2D, Linear, Flatten (stateful, learnable layers)
-│   ├── activations.py    # relu, softmax, sigmoid
-│   ├── losses.py         # cross_entropy (stable log-softmax + NLL), accuracy
-│   ├── optim.py           # SGD, SGDMomentum, Adam
-│   ├── model.py            # Sequential / CNN — composes layers
-│   └── utils.py             # MNIST loading (+ synthetic fallback), batching, plotting
+│ ├── engine.py # Tensor class — autograd engine, im2col/col2im, conv2d, max_pool2d
+│ ├── layers.py # Conv2D, MaxPool2D, Linear, Flatten (stateful, learnable layers)
+│ ├── activations.py # relu, softmax, sigmoid
+│ ├── losses.py # cross_entropy (stable log-softmax + NLL), accuracy
+│ ├── optim.py # SGD, SGDMomentum, Adam
+│ ├── model.py # Sequential / CNN — composes layers
+│ └── utils.py # MNIST loading (+ synthetic fallback), batching, plotting
 ├── notebooks/
-│   └── Tensor-Autograd.ipynb              # Step-by-step engine walkthrough with gradient checks
+│ └── Tensor-Autograd.ipynb # Step-by-step engine walkthrough with gradient checks
 ├── examples/
-│   └── MNIST-Training-Visualization.ipynb # Full training run + visualizations
+│ └── MNIST-Training-Visualization.ipynb # Full training run + visualizations
 ├── tests/
-│   ├── test_engine.py    # Gradient checks: add, mul, matmul, broadcasting, conv2d, max_pool2d
-│   ├── test_layers.py    # Shape, parameter registration, gradient-flow checks for each layer
-│   └── test_optim.py     # Update-rule correctness + loss-reduction checks for each optimizer
+│ ├── test_engine.py # Gradient checks: add, mul, matmul, broadcasting, conv2d, max_pool2d
+│ ├── test_layers.py # Shape, parameter registration, gradient-flow checks for each layer
+│ └── test_optim.py # Update-rule correctness + loss-reduction checks for each optimizer
 ├── .github/workflows/ci.yml
 ├── pyproject.toml
 ├── requirements.txt
 ├── setup.py
 └── LICENSE
+
 ```
 
 ---
@@ -139,10 +131,10 @@ For a real training run on actual MNIST data with visualizations, see [`examples
 
 `Tensor` extends ann-foundation's scalar `Value` design to N-dimensional NumPy arrays. The core mechanism is unchanged — every op records its parents and a local `_backward` closure, and `.backward()` walks a topological ordering of the graph in reverse, applying the chain rule. Two things are genuinely new at the array level:
 
-| Mechanism | Why it's needed |
-|---|---|
+| Mechanism                       | Why it's needed                                                                                                                                                                                                                |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Broadcasting-aware backward** | NumPy silently broadcasts shapes (e.g. a `(1, n)` bias added to a `(batch, n)` matrix). The backward pass must sum the incoming gradient back down to the original shape, or parameter gradients won't match parameter shapes. |
-| **`im2col` / `col2im`** | Convolution implemented as nested loops is too slow to train anything real. `im2col` unrolls receptive-field patches into columns so convolution becomes one matmul; `col2im` is its exact backward (scatter-add) counterpart. |
+| **`im2col` / `col2im`**         | Convolution implemented as nested loops is too slow to train anything real. `im2col` unrolls receptive-field patches into columns so convolution becomes one matmul; `col2im` is its exact backward (scatter-add) counterpart. |
 
 ```python
 x = Tensor(0.5)
