@@ -1,0 +1,4 @@
+numpy>=1.23
+matplotlib>=3.5
+pytest>=7.0
+jupyter>=1.0
