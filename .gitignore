@@ -1,0 +1,32 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Downloaded dataset cache
+mnist_data/
+*.gz
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
