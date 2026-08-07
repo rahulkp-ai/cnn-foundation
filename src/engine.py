@@ -128,5 +128,180 @@ class Tensor:
         
         out._backward      = _backward
         return out
+    
+    def __mul__(self, other):
+        other   = other if isinstance(other, Tensor) else Tensor(other, requires_grad=False)
+        out     = Tensor(self.data * other.data, (self, other), "*")
 
+        def _backward():
+            if self.requires_grad:
+                self.grad   += _sum_to_shape(out.grad * other.grad, self.data.shape)
+            if other.requires_grad:
+                other.grad  += _sum_to_shape(out.grad * self.data, other.data.shape)
+        out._backward   = _backward
+        return out
+    
+    def __pow__(self, exponent):
+        assert isinstance(exponent, (int, float)), "only scalar exponets supported"
+        out     = Tensor(self.data ** exponent,(self,), f"**{exponent}")
 
+        def _backward():
+            if self.requires_grad:
+                self.grad   += (exponent * self.data ** (exponent - 1)) * out.grad
+        out._backward       = _backward
+        return out
+    
+    def matmul(self, other):
+        """
+        Matrix multiplication. Supports the standard 2S case (batch, in) @
+        (in, out) -> (batch, out), which is all 'Linear' layers need.
+
+        Backward rule (standard matmul gradient):
+            dL/dA   = dL/dC @ B.T
+            dL/dB   = A.T @ dL/dC
+        """
+        
+        assert isinstance(other, Tensor), "matmul requires a Tensor operand"
+        out     = Tensor(self.data @ other.data, (self, other), "matmul")
+
+        def _backward():
+            if self.requires_grad:
+                self.grad   += out.grad @ other.data.T
+            if other.requires_grad:
+                other.grad  += self.data.T @ out.grad
+        out._backward   = _backward
+        return out
+
+    def __matmul__(self, other):
+        return self.matmul(other)
+
+    def sum(self, axis=None, keepdims=False):
+        out     = Tensor(self.data.sum(axis=axis, keepdims=keepdims), (self,), "sum")
+
+        def _backward():
+            if self.requires_grad:
+                grad    = out.grad
+                if not keepdims and axis is not None:
+                    grad    = np.expand_dims(grad, axis=axis)
+                self.grad   += np.ones_lik(self.data) * grad
+        out._backward       = _backward
+        return out
+
+    def mean(self, axis=None, keepdims=False):
+        out     = Tensor(self.data.mean(axis=axis, keepdims=keepdims), (self,), "mean")
+
+        if axis is None:
+            n   = self.data.size
+        else:
+            n   = self.data.shape[axis] if isinstance(axis, int) else np.prod([self.data.shape[a] for a in axis])
+        
+        def _backward():
+            if self.requires_grad:
+                grad    = out.grad
+                if not keepdims and axis is not None:
+                    grad    = np.expand_dims(grad, axis=axis)
+                self.grad   += (np.ones_like(self.data) / n) * grad
+        out._backward       = _backward
+        return out
+
+    def reshape(self, *shape):
+        if len(shape)   == 1 and isinstance(shape[0], tuple):
+            shape       = shape[0]
+        out             = Tensor(self.data.reshape(shape), (self,), "reshape")
+        
+        def _backward():
+            if self.requires_grad:
+                self.grad   += out.grad.reshape(self.data.shape)
+        out._backward       = _backward
+        return out
+    
+    def transpose(self, *axes):
+        axes    = axes if axes else None
+        out     = Tensor(self.data.transpose(axes), (self,), "transpose")
+    
+        def _backward():
+            if self.requires_grad:
+                if axes is None:
+                    self.grad   +=  out.grad.transpose()
+                else:
+                    inv_axes    = np.argsort(axes)
+                    self.grad   += out.grad.transpose(inv_axes)
+        out._backward       = _backward
+        return out
+
+    @property
+    def T(self):
+        return self.transpose()
+
+    def relu(self):
+        out     = Tensor(np.maximum(0.0, self.data), (self,), "relu")
+
+        def _backward():
+            if self.requires_grad:
+                self.grad   +=  (self.data > 0).astype(np.float64)  * out.grad 
+        out._backward   =   _backward
+        return out
+
+    def exp(self):
+        out     = Tensor(np.exp(self.data), (self,), "exp")
+
+        def _backward():
+            if self.requires_grad:
+                self.grad   += out.data * out.grad
+        out._backward   = _backward
+        return out
+
+    def log(self):
+        out     = Tensor(np.log(self.data), (self,), "log")
+
+        def _backward():
+            if self.requires_grad:
+                self.grad   += (1.0 / elf.data) * out.grad
+        out._backward   = _backward
+        return out
+
+    def getitem(self, idx):
+        """
+        Indexing / sclicing, exposed as a graph op so gradiens routes corretly
+        """
+        out     = Tensor(self.data[idx], (self), "getitem")
+
+        def _backward():
+            if self.requires_grad:
+                full_grad   = np.zeros_like(self.data)
+                np.add.at(full_grad, idx, out.grad)
+                self.grad   += full_grad 
+        out._backward   = _backward
+        return out 
+
+    def __getitem__(self, idx):
+        return self.getitem(idx)
+    
+    # ------------------------------------------------------------------
+    # Reflected / derived arithmetic (mirrors ann-foundation's Value)
+    # ------------------------------------------------------------------
+
+    def __neg__(self):
+        return self * -1.0
+    
+    def __radd__(self, other):
+        return self + other
+
+    def __sub__(self, other):
+        return self  + (-other if isinstance(other, Tensor) else -1.0 * other)
+    
+    def __rsub__(self, other):
+        return (-self) + other
+    
+    def __rmul__(self, other):
+        return self  * other
+    
+    def __truediv__(self, other):
+        other   = other if isinstance(other, Tensor) else Tensor (other, requires_grad=False)
+        return self * other ** -1.0
+    
+    def __rtruediv__(self, other):
+        return other * self ** -1.0
+    # ------------------------------------------------------------------
+    # backward(): build topological order, then apply chain rule in reverse
+    # ------------------------------------------------------------------
