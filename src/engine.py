@@ -183,7 +183,7 @@ class Tensor:
                 grad    = out.grad
                 if not keepdims and axis is not None:
                     grad    = np.expand_dims(grad, axis=axis)
-                self.grad   += np.ones_lik(self.data) * grad
+                self.grad   += np.ones_like(self.data) * grad
         out._backward       = _backward
         return out
 
@@ -305,3 +305,48 @@ class Tensor:
     # ------------------------------------------------------------------
     # backward(): build topological order, then apply chain rule in reverse
     # ------------------------------------------------------------------
+
+    def backward(self):
+        """
+        Run reverse-mode autodiff from this Tensor back through the graph.
+
+        Identical algorithm to ann-foundation's 'Value.backward()': a DFS
+        builds a topological ordering og graph, then we seed this Tensor's 
+        gradient with ones (dL/dL   =  1) and walk the order in reverse,
+        calling each node's local   '_backward'.
+        """
+
+        topo    =   []
+        visited =   set()
+
+        def build_topo(v):
+            if id(v) not in visited:
+                visited.add(id(v))
+                for child in v._prev:
+                    build_topo(child)
+                topo.append(v)
+        build_topo(self)
+
+        self.grad   =   np.ones_like(self.data)
+        for v in reversed(topo):
+            v._backward()
+
+    def __repr__(self):
+        return  f"Tensor(shape={self.data.shape}, op='{self._op}')"
+
+# ==========================================================================
+# im2col / col2im — the trick that makes from-scratch convolution fast.
+#
+# A naive convolution implementation loops over every output pixel and every
+# kernel position in pure Python, which is far too slow to train a real CNN.
+# The standard trick (used internally by real frameworks too) is to unroll
+# every receptive-field patch of the input into a column of a big matrix,
+# so that convolution becomes a single matrix multiply:
+#
+#     conv(input, kernel)  ==  kernel_matrix @ im2col(input)
+#
+# These two functions are pure NumPy (no graph tracking) — they are used
+# *inside* the conv2d Tensor op below, which handles the autograd bookkeeping
+# around them. col2im is exactly the backward pass of im2col (scatter-add
+# instead of gather), which is what makes conv2d's backward correct.
+# ==========================================================================
