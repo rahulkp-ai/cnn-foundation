@@ -127,3 +127,41 @@ def test_division_gradient():
     num_x = numerical_grad(f, x_data)
     assert np.allclose(x.grad, num_x, atol=1e-5)
 
+# --------------------------------------------------------------------------
+# Broadcasting-aware backward — the key new mechanism vs. a scalar engine
+# --------------------------------------------------------------------------
+
+def test_broadcast_add_gradient_shapes():
+    """Adding a (1, n) bias to a (batch, n) matrix must sum grad back to (1, n)."""
+    x = Tensor(np.random.randn(4, 5))
+    bias = Tensor(np.random.randn(1, 5))
+    out = (x + bias).sum()
+    out.backward()
+    assert x.grad.shape == (4, 5)
+    assert bias.grad.shape == (1, 5)
+
+def test_broadcast_scalar_gradient():
+    """Adding a scalar Tensor to a matrix should sum all contributions into the scalar's grad."""
+    x = Tensor(np.random.randn(3, 3))
+    scalar = Tensor(2.0)
+    out = (x + scalar).sum()
+    out.backward()
+    assert np.isclose(scalar.grad, 9.0)  # scalar contributes to all 9 elements
+
+def test_broadcast_add_gradient_values():
+    np.random.seed(3)
+    x_data = np.random.randn(4, 5)
+    bias_data = np.random.randn(1, 5)
+
+    def f():
+        x = Tensor(x_data.copy())
+        bias = Tensor(bias_data.copy())
+        return (x + bias).sum().data.item()
+
+    x = Tensor(x_data.copy())
+    bias = Tensor(bias_data.copy())
+    out = (x + bias).sum()
+    out.backward()
+
+    num_bias = numerical_grad(f, bias_data)
+    assert np.allclose(bias.grad, num_bias, atol=1e-5)
