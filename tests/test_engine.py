@@ -165,3 +165,39 @@ def test_broadcast_add_gradient_values():
 
     num_bias = numerical_grad(f, bias_data)
     assert np.allclose(bias.grad, num_bias, atol=1e-5)
+
+
+# --------------------------------------------------------------------------
+# Matmul
+# --------------------------------------------------------------------------
+
+def test_matmul_gradient_shapes():
+    X = Tensor(np.random.randn(4, 3))
+    W = Tensor(np.random.randn(3, 5))
+    out = X.matmul(W).sum()
+    out.backward()
+    assert X.grad.shape == (4, 3)
+    assert W.grad.shape == (3, 5)
+
+
+def test_matmul_gradient_values():
+    np.random.seed(4)
+    X_data = np.random.randn(4, 3)
+    W_data = np.random.randn(3, 5)
+
+    def f():
+        X = Tensor(X_data.copy())
+        W = Tensor(W_data.copy())
+        return X.matmul(W).sum().data.item()
+
+    X = Tensor(X_data.copy())
+    W = Tensor(W_data.copy())
+    out = X.matmul(W).sum()
+    out.backward()
+
+    num_X = numerical_grad(f, X_data)
+    num_W = numerical_grad(f, W_data)
+    assert np.allclose(X.grad, num_X, atol=1e-5)
+    assert np.allclose(W.grad, num_W, atol=1e-5)
+
+
