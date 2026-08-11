@@ -201,3 +201,33 @@ def test_matmul_gradient_values():
     assert np.allclose(W.grad, num_W, atol=1e-5)
 
 
+# --------------------------------------------------------------------------
+# Reshape / transpose
+# --------------------------------------------------------------------------
+
+def test_reshape_gradient():
+    x = Tensor(np.random.randn(2, 6))
+    out = x.reshape(3, 4).sum()
+    out.backward()
+    assert x.grad.shape == (2, 6)
+    assert np.allclose(x.grad, np.ones((2, 6)))
+
+
+def test_transpose_gradient():
+    np.random.seed(5)
+    x_data = np.random.randn(3, 4)
+
+    def f():
+        x = Tensor(x_data.copy())
+        weights = Tensor(np.arange(12).reshape(4, 3).astype(np.float64))
+        return (x.T * weights).sum().data.item()
+
+    x = Tensor(x_data.copy())
+    weights = Tensor(np.arange(12).reshape(4, 3).astype(np.float64))
+    out = (x.T * weights).sum()
+    out.backward()
+    num = numerical_grad(f, x_data)
+    assert np.allclose(x.grad, num, atol=1e-5)
+
+
+
