@@ -230,4 +230,126 @@ def test_transpose_gradient():
     assert np.allclose(x.grad, num, atol=1e-5)
 
 
+# --------------------------------------------------------------------------
+# Conv2D / MaxPool2D — the operations unique to a CNN, gradient-checked
+# against numerical differentiation since these are the easiest ops to get
+# subtly wrong (index bugs in padding/striding fail silently otherwise).
+# --------------------------------------------------------------------------
+
+def test_conv2d_gradient_shapes():
+    x = Tensor(np.random.randn(2, 3, 8, 8))
+    w = Tensor(np.random.randn(4, 3, 3, 3))
+    b = Tensor(np.random.randn(4))
+    out = conv2d(x, w, b, stride=1, pad=1)
+    assert out.shape == (2, 4, 8, 8)
+    out.sum().backward()
+    assert x.grad.shape == x.shape
+    assert w.grad.shape == w.shape
+    assert b.grad.shape == b.shape
+
+
+def test_conv2d_gradient_values_no_padding():
+    np.random.seed(10)
+    x_data = np.random.randn(2, 2, 5, 5) * 0.5
+    w_data = np.random.randn(3, 2, 3, 3) * 0.5
+
+    def f():
+        x = Tensor(x_data.copy())
+        w = Tensor(w_data.copy())
+        return conv2d(x, w, stride=1, pad=0).sum().data.item()
+
+    x = Tensor(x_data.copy())
+    w = Tensor(w_data.copy())
+    out = conv2d(x, w, stride=1, pad=0)
+    out.sum().backward()
+
+    num_x = numerical_grad(f, x_data)
+    num_w = numerical_grad(f, w_data)
+    assert np.allclose(x.grad, num_x, atol=1e-6)
+    assert np.allclose(w.grad, num_w, atol=1e-6)
+
+
+def test_conv2d_gradient_values_with_padding_and_stride():
+    np.random.seed(11)
+    x_data = np.random.randn(2, 2, 6, 6) * 0.5
+    w_data = np.random.randn(3, 2, 3, 3) * 0.5
+    b_data = np.random.randn(3) * 0.5
+
+    def f():
+        x = Tensor(x_data.copy())
+        w = Tensor(w_data.copy())
+        b = Tensor(b_data.copy())
+        return conv2d(x, w, b, stride=2, pad=1).sum().data.item()
+
+    x = Tensor(x_data.copy())
+    w = Tensor(w_data.copy())
+    b = Tensor(b_data.copy())
+    out = conv2d(x, w, b, stride=2, pad=1)
+    out.sum().backward()
+
+    num_x = numerical_grad(f, x_data)
+    num_w = numerical_grad(f, w_data)
+    num_b = numerical_grad(f, b_data)
+    assert np.allclose(x.grad, num_x, atol=1e-6)
+    assert np.allclose(w.grad, num_w, atol=1e-6)
+    assert np.allclose(b.grad, num_b, atol=1e-6)
+
+
+def test_max_pool2d_gradient_shapes():
+    x = Tensor(np.random.randn(2, 3, 8, 8))
+    out = max_pool2d(x, pool_size=2, stride=2)
+    assert out.shape == (2, 3, 4, 4)
+    out.sum().backward()
+    assert x.grad.shape == x.shape
+
+
+def test_max_pool2d_gradient_values():
+    np.random.seed(12)
+    x_data = np.random.randn(2, 2, 6, 6)
+    weights = np.random.randn(2, 2, 3, 3)
+
+    def f():
+        x = Tensor(x_data.copy())
+        out = max_pool2d(x, pool_size=2, stride=2)
+        return (out.data * weights).sum()
+
+    x = Tensor(x_data.copy())
+    out = max_pool2d(x, pool_size=2, stride=2)
+    loss = (out * Tensor(weights, requires_grad=False)).sum()
+    loss.backward()
+
+    num_x = numerical_grad(f, x_data)
+    assert np.allclose(x.grad, num_x, atol=1e-6)
+
+
+def test_max_pool2d_routes_gradient_to_max_only():
+    """Gradient should be zero everywhere except the argmax position in each window."""
+    x_data = np.array([[[[1.0, 2.0], [3.0, 4.0]]]])  # single 2x2 window, max is 4.0 at (1,1)
+    x = Tensor(x_data)
+    out = max_pool2d(x, pool_size=2, stride=2)
+    out.sum().backward()
+    expected = np.array([[[[0.0, 0.0], [0.0, 1.0]]]])
+    assert np.allclose(x.grad, expected)
+
+
+def test_conv_then_pool_end_to_end_gradient():
+    """A conv2d -> relu -> max_pool2d pipeline should produce nonzero, finite gradients."""
+    np.random.seed(13)
+    x = Tensor(np.random.randn(2, 1, 8, 8) * 0.3)
+    w = Tensor(np.random.randn(4, 1, 3, 3) * 0.3)
+    b = Tensor(np.zeros(4))
+
+    h = conv2d(x, w, b, stride=1, pad=1).relu()
+    h = max_pool2d(h, pool_size=2, stride=2)
+    loss = h.sum()
+    loss.backward()
+
+    assert np.all(np.isfinite(x.grad))
+    assert np.all(np.isfinite(w.grad))
+    assert np.any(w.grad != 0)
+
+
+if __name__ == "__main__":
+    sys.exit(pytest.main([__file__, "-v"]))
+
 
