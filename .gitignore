@@ -30,5 +30,3 @@ mnist_data/
 .DS_Store
 .vscode/
 .idea/
-
-MNIST-Training-Visualization.ipynb
