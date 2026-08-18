@@ -1,0 +1,62 @@
+name: CNN Foundation CI Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test on Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install package with dev dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run gradient-check test suite
+        run: pytest tests/ -v
+
+      - name: Smoke-test a tiny end-to-end training run
+        run: |
+          python -c "
+          import numpy as np
+          from src.engine import Tensor
+          from src.layers import Conv2D, MaxPool2D, Flatten, Linear
+          from src.activations import relu
+          from src.model import CNN
+          from src.losses import cross_entropy
+          from src.optim import Adam
+
+          np.random.seed(0)
+          model = CNN(
+              Conv2D(1, 4, kernel_size=3, pad=1), relu,
+              MaxPool2D(2),
+              Flatten(),
+              Linear(4*4*4, 10),
+          )
+          opt = Adam(model.parameters(), lr=0.01)
+          X = np.random.randn(4, 1, 8, 8)
+          y = np.random.randint(0, 10, size=4)
+          opt.zero_grad()
+          logits = model(Tensor(X))
+          loss = cross_entropy(logits, y)
+          loss.backward()
+          opt.step()
+          assert np.isfinite(loss.data.item())
+          print('Smoke test passed — loss:', loss.data.item())
+          "
