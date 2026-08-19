@@ -8,7 +8,7 @@ Let's break down **why this exact order** makes sense.
 
 ## 1. The overall idea
 
-Your pipeline:
+The pipeline:
 
 ```text
 Input Image
@@ -634,7 +634,7 @@ So the complete shape flow is:
 
 ```
 
-🔥 **That's the real reason for the pipeline.**
+**That's the real reason for the pipeline.**
 
 It gradually transforms the data from:
 

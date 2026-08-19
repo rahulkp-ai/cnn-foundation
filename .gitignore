@@ -30,3 +30,4 @@ mnist_data/
 .DS_Store
 .vscode/
 .idea/
+model_weights.npz
